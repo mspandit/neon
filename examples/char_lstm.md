@@ -17,3 +17,19 @@ command-line parameters,
 > for training/sampling from character-level language models. In other words, 
 > the model takes one text file as input and trains a...network that learns to
 > predict the next character in a sequence.
+
+# Local Training
+
+`python char_lstm.py`
+
+or
+
+`python char_lstm.py --rlayer_type=gru`
+
+# Nervana Cloud Training
+
+`ncloud model train char_lstm.py`
+
+or
+
+`ncloud model train char_lstm.py -a "--rlayer_type gru"`
