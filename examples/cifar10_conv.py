@@ -81,6 +81,5 @@ callbacks = Callbacks(model, eval_set=test, **args.callback_args)
 
 model.fit(train, optimizer=opt_gdm, num_epochs=num_epochs,
           cost=cost, callbacks=callbacks)
-
-error_rate = model.eval(test, metric=Misclassification())
-neon_logger.display('Misclassification error = %.1f%%' % (error_rate * 100))
+neon_logger.display('\nMisclassification error = %.1f%%' % 
+                    (model.eval(test, metric=Misclassification()) * 100))

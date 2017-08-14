@@ -100,5 +100,5 @@ if args.deconv:
 
 mlp.fit(train_set, optimizer=opt_gdm, num_epochs=num_epochs,
         cost=cost, callbacks=callbacks)
-neon_logger.display('Misclassification error = %.1f%%' %
+neon_logger.display('\nMisclassification error = %.1f%%' %
                     (mlp.eval(valid_set, metric=Misclassification()) * 100))
