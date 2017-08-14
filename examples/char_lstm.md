@@ -5,7 +5,7 @@ char-rnn](http://github.com/karpathy/char-rnn) on the Neon framework.
 
 # The Data
 
-Uses the `[PTB](http://neon.nervanasys.com/docs/latest/datasets.html#text)`
+Uses the [PTB](http://neon.nervanasys.com/docs/latest/datasets.html#text)
 class to acquire large amounts of English text for training, validation, and
 testing.
 
