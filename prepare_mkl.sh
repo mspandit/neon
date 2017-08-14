@@ -42,13 +42,14 @@ echo $VERSION_LINE  # Return Version Line
 # MKL
 DST=`dirname $0`
 OMP=0
-VERSION_MATCH=20170209
-ARCHIVE_BASE=mklml_lnx_2017.0.2.20170209
+VERSION_MATCH=20170720
+ARCHIVE_BASE=mklml_lnx_2018.0.20170720
 ARCHIVE_BASENAME=$ARCHIVE_BASE.tgz
-GITHUB_RELEASE_TAG=v0.5
+GITHUB_RELEASE_TAG=v0.9
 MKLURL="https://github.com/01org/mkl-dnn/releases/download/$GITHUB_RELEASE_TAG/$ARCHIVE_BASENAME"
 # there are diffrent MKL lib to be used for GCC and for ICC
 reg='^[0-9]+$'
+echo Checking MKLML dependencies...
 VERSION_LINE=`GetVersionName $MKLROOT`
 # Check if MKLROOT is set if positive then set one will be used..
 if [ -z $MKLROOT ] || [ $VERSION_LINE -lt $VERSION_MATCH ]; then
@@ -56,11 +57,13 @@ if [ -z $MKLROOT ] || [ $VERSION_LINE -lt $VERSION_MATCH ]; then
     VERSION_LINE=`GetVersionName $DST/$ARCHIVE_BASE`
     if [ $VERSION_LINE -lt $VERSION_MATCH ] ; then
       #...If it is not then downloaded and unpacked
-      wget --no-check-certificate -P $DST $MKLURL -O $DST/$ARCHIVE_BASENAME
-      tar -xzf $DST/$ARCHIVE_BASENAME -C $DST
+      echo Downloading required MKLML version ${ARCHIVE_BASE} ...
+      wget --no-check-certificate -P $DST $MKLURL -O $DST/$ARCHIVE_BASENAME > /dev/null 2>&1
+      tar -xzf $DST/$ARCHIVE_BASENAME -C $DST > /dev/null 2>&1
     fi
   FindLibrary $1
   MKLROOT=$PWD/`echo $LOCALMKL | sed -e 's/lib.*$//'`
+  echo MKLML dependencies installed: MKLROOT=${MKLROOT}
 fi
 
 # Check what MKL lib we have in MKLROOT

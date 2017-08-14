@@ -28,6 +28,12 @@ except:
     # stub out the class
     class NervanaGPU(object):
         pass
+try:
+    from neon.backends.nervanamkl import NervanaMKL
+except:
+    # stub out the class
+    class NervanaMKL(object):
+        pass
 
 
 def pytest_generate_tests(metafunc):
@@ -149,6 +155,8 @@ def test_conv_ones(backend_default, ones_convargs, deltas_buffer):
     if isinstance(NervanaObject.be, NervanaGPU) and NervanaObject.be.compute_capability < (5, 0):
         if nifm % 4 != 0:
             pytest.skip(msg="C dim must be a multiple of 4 for Kepler bprop kernel")
+    if isinstance(NervanaObject.be, NervanaMKL):
+        pytest.xfail(reason="Known MKL bug. See #913")
 
     NervanaObject.be.bsz = batch_size
 
@@ -188,7 +196,7 @@ def test_conv_ones(backend_default, ones_convargs, deltas_buffer):
     ref_layer.weights = np.ones(neon_layer.W.shape).T.astype(dtypeu)
     ref_layer.fprop(inp.get().T)
     out_exp = ref_layer.y.copy()
-    assert np.allclose(out_exp.T, out, atol=0.0, rtol=0.0)
+    assert allclose_with_out(out_exp.T, out, atol=0.0, rtol=0.0)
 
     # generate err array
     err = np.ones(out.shape).astype(np.float32)
@@ -205,7 +213,7 @@ def test_conv_ones(backend_default, ones_convargs, deltas_buffer):
     updates_exp = ref_layer.updates.T
 
     # check dw from neon layer
-    assert np.allclose(dw, updates_exp, atol=0.0, rtol=0.0)
+    assert allclose_with_out(dw, updates_exp, atol=0.0, rtol=0.0)
 
     # the deltas are more complicated since the matricies are not
     # uniform, going to use the reference code directly here
@@ -222,6 +230,9 @@ def test_conv_rand(backend_default, rand_convargs, deltas_buffer):
     if isinstance(NervanaObject.be, NervanaGPU) and NervanaObject.be.compute_capability < (5, 0):
         if nifm % 4 != 0:
             pytest.skip(msg="C dim must be a multiple of 4 for Kepler bprop kernel")
+    if isinstance(NervanaObject.be, NervanaMKL):
+        pytest.xfail(reason="Known MKL bug. See #913")
+
     NervanaObject.be.bsz = batch_size
     inp_rng = [0.0, rng_max]
     dtypeu = np.float32

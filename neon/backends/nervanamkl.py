@@ -19,6 +19,7 @@ from __future__ import division
 import logging
 
 from neon.backends import layer_mkl
+from neon.backends.util.check_mkl import get_mkl_lib
 from neon.backends.nervanacpu import CPUTensor, NervanaCPU, CustomNumpy
 import ctypes
 from cffi import FFI
@@ -173,18 +174,15 @@ class NervanaMKL(NervanaCPU):
                                          hist_bins, hist_offset, compat_mode=compat_mode)
         self.tensor_cls = MKLTensor
         logger.info("Initialized NervanaMKL")
+        assert get_mkl_lib(), "MKL is not installed correctly"
 
         path = os.path.dirname(os.path.realpath(__file__))
         mkl_engine_path = os.path.join(path, os.pardir, 'backends', 'mklEngine', 'mklEngine.so')
-        assert os.path.isfile(mkl_engine_path), "mklEngine is not installed correctly"
         self.mklEngine = ctypes.cdll.LoadLibrary(mkl_engine_path)
 
         math_engine_path = os.path.join(os.path.dirname(__file__), 'mklEngine', 'cmath.so')
-        assert os.path.isfile(math_engine_path), "cmath.so not found.  Run make"
         header_path = os.path.join(os.path.dirname(__file__), 'mklEngine',
                                    'src', 'math_cpu.header')
-        assert os.path.isfile(header_path), "math_cpu.header not found"
-
         ffi = FFI()
         with open(header_path) as header:
             ffi.cdef(header.read())
@@ -361,7 +359,6 @@ class NervanaMKL(NervanaCPU):
             O (Tensor): output tensor.
             argmax (Tensor): tensor to store location of the maximum
         """
-
         assert layer.sizeI == I.size
         assert layer.sizeO == O.size
         assert layer.op == "max" or layer.op == 'avg'
@@ -373,6 +370,12 @@ class NervanaMKL(NervanaCPU):
         K, M, P, Q, N = layer.dimO
         pad_c, pad_d, pad_h, pad_w = layer.padding
         str_c, str_d, str_h, str_w = layer.strides
+
+        # unsupported fall back to cpu
+        if J > 1 or T > 1 or D > 1:
+            super(NervanaMKL, self).fprop_pool(layer, I, O, argmax, beta)
+            return
+
         if layer.op == "max":
             bMax = 1
         elif layer.op == 'avg':
@@ -385,7 +388,7 @@ class NervanaMKL(NervanaCPU):
         primitives = c_longlong(layer.dnnPrimitives.ctypes.data)
         self.mklEngine.MaxPooling_fprop(
             I.get_prim(), O.get_prim(), primitives, layer.initOk_f, bMax,
-            N, C, H, W, S, R, str_h, str_w, pad_h, pad_w, K, P, Q, bCeil)
+            N, C, H, W, R, S, str_h, str_w, pad_h, pad_w, K, P, Q, bCeil)
         layer.initOk_f = 1
         O.shape5D = layer.dimO
 
@@ -406,6 +409,18 @@ class NervanaMKL(NervanaCPU):
         assert layer.sizeO == I.size
         if layer.op == "max":
             assert layer.sizeO == argmax.size
+
+        J, T, R, S = layer.JTRS
+        C, D, H, W, N = layer.dimI
+        K, M, P, Q, N = layer.dimO
+        pad_c, pad_d, pad_h, pad_w = layer.padding
+        str_c, str_d, str_h, str_w = layer.strides
+
+        # unsupported fall back to cpu
+        if J > 1 or T > 1 or D > 1:
+            super(NervanaMKL, self).bprop_pool(layer, I, O, argmax, alpha, beta)
+            return
+
         primitives = c_longlong(layer.dnnPrimitives.ctypes.data)
         self.mklEngine.MaxPooling_bprop(I.get_prim(), O.get_prim(),
                                         primitives, layer.initOk_b)
@@ -474,6 +489,10 @@ class NervanaMKL(NervanaCPU):
         return layer_mkl.ReluLayerMKL()
 
     def fprop_relu(self, layer, x, slope):
+        if layer is None:
+            layer = layer_mkl.ReluLayerMKL()
+        if not hasattr(x, 'shape5D'):
+            return self.maximum(x, 0) + slope * self.minimum(0, x)
         if slope != 0:
             self.convert(x)
             x.clean_mkl()
@@ -495,9 +514,12 @@ class NervanaMKL(NervanaCPU):
         return x
 
     def bprop_relu(self, layer, x, error, deltas, slope):
+        if layer is None:
+            layer = layer_mkl.ReluLayerMKL()
         if slope != 0 or error is None:
-            self.convert(error)
-            error.clean_mkl()
+            if error is not None:
+                self.convert(error)
+                error.clean_mkl()
             return self.greater(x, 0) + slope * self.less(x, 0)
 
         # to be moved to C code
@@ -536,10 +558,17 @@ class NervanaMKL(NervanaCPU):
                 nglayer, transform, outputs, error, deltas, relu)
 
     def compound_fprop_bn(self, x, xsum, xvar, gmean, gvar, gamma, beta, y,
-                          eps, rho, compute_batch_sume,
+                          eps, rho, compute_batch_sum,
                           accumbeta=0.0, relu=False, binary=False,
                           inference=False, outputs=None, layer=None):
-        assert layer is not None and outputs is not None
+        if layer is None or outputs is None or not isinstance(layer.in_shape, tuple):
+            super(NervanaMKL, self).compound_fprop_bn(x, xsum, xvar, gmean, gvar,
+                                                      gamma, beta, y, eps, rho,
+                                                      compute_batch_sum,
+                                                      accumbeta, relu, binary,
+                                                      inference, outputs, layer
+                                                      )
+            return
 
         primitives = c_longlong(layer.dnnPrimitives.ctypes.data)
         if len(layer.in_shape) == 3:
@@ -569,8 +598,14 @@ class NervanaMKL(NervanaCPU):
 
     def compound_bprop_bn(self, deltas, grad_gamma, grad_beta,
                           error, inputs, xsum, xvar, gamma,
-                          eps, binary=False, layer=False):
-        assert layer is not None
+                          eps, binary=False, layer=None):
+        if not layer or not isinstance(layer.in_shape, tuple):
+            super(NervanaMKL, self).compound_bprop_bn(deltas, grad_gamma,
+                                                      grad_beta, error,
+                                                      inputs, xsum, xvar,
+                                                      gamma, eps, binary,
+                                                      layer)
+            return
 
         primitives = c_longlong(layer.dnnPrimitives.ctypes.data)
 

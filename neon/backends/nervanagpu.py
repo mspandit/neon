@@ -1944,7 +1944,7 @@ class NervanaGPU(Backend):
 
     def fprop_conv(self, layer, I, F, O,
         X=None, bias=None, bsum=None, alpha=1.0, beta=0.0,
-        relu=False, brelu=False, slope=0.0, repeat=1):
+        relu=False, brelu=False, slope=0.0, repeat=1, layer_op=None):
         """
         fprop_conv:
 
@@ -1985,7 +1985,7 @@ class NervanaGPU(Backend):
 
     def bprop_conv(self, layer, F, E, grad_I,
         X=None, bias=None, bsum=None, alpha=1.0, beta=0.0,
-        relu=False, brelu=False, slope=0.0, repeat=1):
+        relu=False, brelu=False, slope=0.0, repeat=1, layer_op=None):
         """
         bprop_conv:
 
@@ -2025,7 +2025,7 @@ class NervanaGPU(Backend):
 
         return self._execute_conv("bprop", layer, layer.bprop_kernels, repeat)
 
-    def update_conv(self, layer, I, E, grad_F, alpha=1.0, beta=0.0, repeat=1):
+    def update_conv(self, layer, I, E, grad_F, alpha=1.0, beta=0.0, repeat=1, layer_op=None):
         """
         update_conv:
 
@@ -2467,7 +2467,7 @@ class NervanaGPU(Backend):
             gmean (Tensor): global mean ()
             gvar (Tensor): global variance
             gamma (Tensor): scale parameter
-            beta (Tensor): location paramter
+            beta (Tensor): location parameter
             y (Tensor): normalized output
             eps (float): constant for numerical stability
             rho (float): exponential window averaging constant

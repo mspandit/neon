@@ -43,6 +43,9 @@ class ConvLayerMKL(ConvLayer):
         self.init_bd = 0  # backward data
         self.init_bw = 0  # backward weight
         self.dilated = any(d != 1 for d in self.dilation)
+        self.is_mklop = True
+        if D != 1 or T != 1 or self.dilated:
+            self.is_mklop = False
 
     def xprop_conv_dilated(self, I, F, O, X=None, bias=None, bsum=None, alpha=1.0, beta=0.0,
                            relu=False, brelu=False, slope=0.0, backward=False):
@@ -108,7 +111,18 @@ class ConvLayerMKL(ConvLayer):
         O.shape5D = self.dimO
 
     def xprop_conv(self, I, F, O, X=None, bias=None, bsum=None, alpha=1.0, beta=0.0,
-                   relu=False, brelu=False, slope=0.0, backward=False):
+                   relu=False, brelu=False, slope=0.0, backward=False, layer_op=None):
+
+        if layer_op is None:
+            layer_op = self
+        if not layer_op.get_is_mklop():
+            I.backend.convert(I)
+            F.backend.convert(F)
+            I.clean_mkl()
+            F.clean_mkl()
+            super(ConvLayerMKL, self).xprop_conv(
+                I, F, O, X, bias, bsum, alpha, beta, relu, brelu, slope, backward)
+            return
 
         # hack for dealing with dilated conv
         if self.dilated:
@@ -119,8 +133,6 @@ class ConvLayerMKL(ConvLayer):
         if X is None:
             X = O
 
-        # call MKL
-        # TODO, consider concact and beta
         # TODO, support bias
         C, D, H, W, N = self.dimI
         C, T, R, S, K = self.dimF
@@ -128,11 +140,11 @@ class ConvLayerMKL(ConvLayer):
         pad_d, pad_h, pad_w = self.padding
         str_d, str_h, str_w = self.strides
         primitives = c_longlong(self.dnnPrimitives.ctypes.data)
-
+        mkl_res = 0
         if not backward:
-            I.backend.mklEngine.Conv_forward(
+            mkl_res = I.backend.mklEngine.Conv_forward(
                 I.get_prim(), O.get_prim(), F.get_prim(), primitives, self.init_f,
-                N, C, H, W, S, R, str_h, str_w, pad_w, pad_h, K, P, Q)
+                N, C, H, W, R, S, str_h, str_w, pad_h, pad_w, K, P, Q)
             self.init_f = 1
             O.shape5D = self.dimO
         else:
@@ -142,8 +154,24 @@ class ConvLayerMKL(ConvLayer):
                 N, K, P, Q, self.init_bd, beta_)
             O.shape5D = self.dimI
             self.init_bd = 1
+        if mkl_res != 0:
+            super(ConvLayerMKL, self).xprop_conv(
+                I, F, O, X, bias, bsum, alpha, beta, relu, brelu, slope, backward)
+            I.clean_mkl()
+            O.clean_mkl()
+            layer_op.set_not_mklop()
+            return
 
-    def update_conv(self, I, E, U, alpha=1.0, beta=0.0):
+    def update_conv(self, I, E, U, alpha=1.0, beta=0.0, layer_op=None):
+
+        if not self.get_is_mklop():
+            I.backend.convert(I)
+            I.clean_mkl()
+            E.backend.convert(E)
+            E.clean_mkl()
+            super(ConvLayerMKL, self).update_conv(I, E, U, alpha, beta)
+            return
+
         # not deal with alpha, beta yet
         K, M, P, Q, N = self.dimO
         primitives = c_longlong(self.dnnPrimitives.ctypes.data)
@@ -180,16 +208,16 @@ class DeconvLayerMKL(DeconvLayer):
     """
 
     def xprop_conv(self, I, F, O, X=None, bias=None, bsum=None, alpha=1.0, beta=0.0,
-                   relu=False, brelu=False, slope=0.0, backward=False):
+                   relu=False, brelu=False, slope=0.0, backward=False, layer_op=None):
 
         I.backend.convert(I)
         I.clean_mkl()
         O.backend.convert(O)
         O.clean_mkl()
         super(DeconvLayerMKL, self).xprop_conv(I, F, O, X, bias, bsum, alpha, beta,
-                                               relu, brelu, slope, backward)
+                                               relu, brelu, slope, backward, layer_op)
 
-    def update_conv(self, I, E, U, alpha=1.0, beta=0.0):
+    def update_conv(self, I, E, U, alpha=1.0, beta=0.0, layer_op=None):
 
         I.backend.convert(I)
         I.clean_mkl()
@@ -197,7 +225,7 @@ class DeconvLayerMKL(DeconvLayer):
         E.backend.convert(E)
         E.clean_mkl()
 
-        super(DeconvLayerMKL, self).update_conv(I, E, U, alpha, beta)
+        super(DeconvLayerMKL, self).update_conv(I, E, U, alpha, beta, layer_op)
 
 
 class PoolLayerMKL(PoolLayer):
@@ -240,6 +268,7 @@ class PoolLayerMKL(PoolLayer):
         self.dnnPrimitives = np.zeros((1, 20), dtype=np.uint64)
         self.initOk_f = 0
         self.initOk_b = 0
+        self.is_mklop = True
 
 
 class ReluLayerMKL(object):

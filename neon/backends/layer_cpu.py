@@ -105,6 +105,16 @@ class ConvLayer(object):
             self.dSlice = [self.bprop_slice(d, T, M, pad_d, str_d, dil_d) for d in range(D)]
             self.hSlice = [self.bprop_slice(h, R, P, pad_h, str_h, dil_h) for h in range(H)]
             self.wSlice = [self.bprop_slice(w, S, Q, pad_w, str_w, dil_w) for w in range(W)]
+        self.is_mklop = False
+
+    def get_is_mklop(self):
+        return self.is_mklop
+
+    def set_is_mklop(self):
+        self.is_mklop = True
+
+    def set_not_mklop(self):
+        self.is_mklop = False
 
     def fprop_slice(self, q, S, X, padding, stride, dilation):
         f1 = None
@@ -161,7 +171,7 @@ class ConvLayer(object):
             bsum[:] = np.sum(O.reshape((O.shape[0], -1)), axis=1, keepdims=True)
 
     def xprop_conv(self, I, F, O, X=None, bias=None, bsum=None, alpha=1.0, beta=0.0,
-                   relu=False, brelu=False, slope=0.0, backward=False):
+                   relu=False, brelu=False, slope=0.0, backward=False, layer_op=None):
 
         if X is None:
             X = O
@@ -228,7 +238,7 @@ class ConvLayer(object):
         if not beta:
             self.compound_ops(O, X, bias, bsum, relu, brelu, slope)
 
-    def update_conv(self, I, E, U, alpha=1.0, beta=0.0):
+    def update_conv(self, I, E, U, alpha=1.0, beta=0.0, layer_op=None):
 
         C = self.C
         K, M, P, Q, N = self.dimO
