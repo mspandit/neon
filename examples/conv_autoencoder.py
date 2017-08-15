@@ -76,14 +76,15 @@ model.fit(train, optimizer=opt_gdm, num_epochs=args.epochs,
 try:
     from matplotlib import pyplot, cm
     fi = 0
-    nrows = 10
-    ncols = 12
+    # Render outputs from the last batch in a nrows X ncols matrix
+    ncols = int(np.ceil(np.sqrt(args.batch_size)))
+    nrows = int(np.floor(args.batch_size / ncols))
     test = np.zeros((28 * nrows, 28 * ncols))
-    idxs = [(row, col) for row in range(nrows) for col in range(ncols)]
-    for row, col in idxs:
-        im = model.layers.layers[-1].outputs.get()[:, fi].reshape((28, 28))
-        test[28 * row:28 * (row + 1):, 28 * col:28 * (col + 1)] = im
-        fi = fi + 1
+    for row in range(nrows):
+        for col in range(ncols):
+            im = model.layers.layers[-1].outputs.get()[:, fi].reshape((28, 28))
+            test[28 * row:28 * (row + 1):, 28 * col:28 * (col + 1)] = im
+            fi = fi + 1
     pyplot.matshow(test, cmap=cm.gray)
     pyplot.savefig('Reconstructed.png')
 except ImportError:
