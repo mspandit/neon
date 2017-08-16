@@ -27,9 +27,11 @@ from neon.initializers import Gaussian
 from neon.layers import GeneralizedCost, Affine, Sequential, MergeMultistream
 from neon.models import Model
 from neon.optimizers import GradientDescentMomentum
-from neon.transforms import Rectlin, Logistic, CrossEntropyBinary
+from neon.transforms import (Rectlin, Logistic, CrossEntropyBinary, 
+                             Misclassification)
 from neon.callbacks.callbacks import Callbacks
 from neon.util.argparser import NeonArgparser
+from neon import logger as neon_logger
 
 # parse the command line arguments
 parser = NeonArgparser(__doc__)
@@ -66,3 +68,9 @@ optimizer = GradientDescentMomentum(learning_rate=0.1, momentum_coef=0.9)
 callbacks = Callbacks(model, eval_set=valid_set, **args.callback_args)
 
 model.fit(train_set, cost=cost, optimizer=optimizer, num_epochs=num_epochs, callbacks=callbacks)
+neon_logger.display(
+    'Misclassification error = %.1f%%' % (
+        model.eval(
+            valid_set, 
+            metric=Misclassification()) 
+        * 100))

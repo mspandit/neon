@@ -9,12 +9,12 @@ class to acquire 70,000 28X28 images in 10 categories---one for each digit.
 
 # The Model
 
-The model illustrates a branching topology, allowing the simultaneous exploration of multiple topologies sharing input layers.
+The model illustrates a merging topology, allowing the simultaneous exploration of multiple topologies sharing output layers.
 
 # Local Training
 
-`python mnist_branch.py`
+`python mnist_merge.py`
 
 # Nervana Cloud Training
 
-`ncloud model train --framework-version v2.0.0 mnist_branch.py`
+`ncloud model train mnist_merge.py`
