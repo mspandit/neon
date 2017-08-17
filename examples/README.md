@@ -9,6 +9,7 @@ This directory contains the following examples of models implemented in Neon:
 * [conv-autoencoder](conv_autoencoder.md), an autoencoder for MNIST images.
 * [mnist-branch](mnist_branch.md), a multilayer perceptron with a branching topology.
 * [mnist-merge](mnist_merge.md), a multilayer perceptron with a merging topology.
+* [multi-optimizer](multi_optimizer.md), a multilayer perceptron with different optimizers for each layer.
 
 ## Models on Text Data
 

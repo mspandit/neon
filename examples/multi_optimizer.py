@@ -28,9 +28,11 @@ from neon.initializers import Gaussian, Constant
 from neon.layers import GeneralizedCost, Affine
 from neon.models import Model
 from neon.optimizers import GradientDescentMomentum, MultiOptimizer, RMSProp
-from neon.transforms import Rectlin, Logistic, CrossEntropyBinary
+from neon.transforms import (Rectlin, Logistic, CrossEntropyBinary, 
+                             Misclassification)
 from neon.callbacks.callbacks import Callbacks
 from neon.util.argparser import NeonArgparser
+from neon import logger as neon_logger
 
 # parse the command line arguments
 parser = NeonArgparser(__doc__)
@@ -69,3 +71,6 @@ callbacks = Callbacks(mlp, eval_set=valid_set, **args.callback_args)
 
 mlp.fit(train_set, optimizer=opt, num_epochs=args.epochs,
         cost=cost, callbacks=callbacks)
+neon_logger.display(
+    'Misclassification error = %.1f%%' % (
+        mlp.eval(valid_set, metric=Misclassification()) * 100))
